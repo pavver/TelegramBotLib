@@ -1,14 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using Telegram.Bot.Types;
 
 namespace Example
 {
     public class Commands : TelegramBotLib.BotCommands
     {
-        public Commands(User user) : base(user)
+        public Commands(User chat) : base(chat)
         {
         }
 

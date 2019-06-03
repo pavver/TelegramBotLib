@@ -13,7 +13,14 @@ namespace TelegramBotLib
     {
         private readonly Telegram.Bot.TelegramBotClient _bot;
 
-        protected Dictionary<int, TCommandsType> UserCommandsList = new Dictionary<int, TCommandsType>();
+        /// <summary>
+        /// Список "типов" классов с командами
+        /// </summary>
+        protected Dictionary<long, TCommandsType> UserCommandsTypes = new Dictionary<long, TCommandsType>();
+
+        /// <summary>
+        /// Список команд в классе с командами (для економии времени на сканировании класса через рефлексию каждый раз)
+        /// </summary>
         protected Dictionary<Type, MethodInfo[]> CommandsMethodsList = new Dictionary<Type, MethodInfo[]>();
 
         public BotController(Config config)
@@ -40,30 +47,32 @@ namespace TelegramBotLib
             }
         }
 
-        private readonly object _getUserLocker = new object();
-        public TCommandsType GetUser(Telegram.Bot.Types.User user)
-        {
-            lock (_getUserLocker)
-            {
-                if (UserCommandsList.ContainsKey(user.Id))
-                    return UserCommandsList[user.Id];
+        private readonly object _getCommandsLocker = new object();
 
-                TCommandsType ret = (TCommandsType)Activator.CreateInstance(typeof(TCommandsType), new { user });
+        public TCommandsType GetCommands(Telegram.Bot.Types.Chat chat)
+        {
+            lock (_getCommandsLocker)
+            {
+                if (UserCommandsTypes.ContainsKey(chat.Id))
+                    return UserCommandsTypes[chat.Id];
+
+                var ret = (TCommandsType) Activator.CreateInstance(typeof(TCommandsType), new {chat});
                 ret.OnSendMessage += Send;
-                UserCommandsList.Add(user.Id, ret);
+                UserCommandsTypes.Add(chat.Id, ret);
                 return ret;
             }
         }
 
         private async Task Send(BotCommands commands, string text, IReplyMarkup keyboard = null)
         {
-            await _bot.SendTextMessageAsync(commands.User.Id, text, replyMarkup: keyboard);
+            await _bot.SendTextMessageAsync(commands.Chat.Id, text, replyMarkup: keyboard);
         }
 
-        private readonly object _getCommandsLocker = new object();
+        private readonly object _getMethodsLocker = new object();
+
         private void CheckLoadedMethods(Type t)
         {
-            lock (_getCommandsLocker)
+            lock (_getMethodsLocker)
                 if (!CommandsMethodsList.ContainsKey(t))
                 {
                     // выбираем только "подходящие" методы
@@ -75,7 +84,9 @@ namespace TelegramBotLib
                     CommandsMethodsList.Add(t, m);
                 }
         }
-        private bool CheckParams(ParameterInfo[] param)
+
+        // ReSharper disable once SuggestBaseTypeForParameter
+        private static bool CheckParams(ParameterInfo[] param)
         {
             // параметров нету? збс
             if (param.Length == 0) return true;
@@ -85,7 +96,7 @@ namespace TelegramBotLib
             return false;
         }
 
-        public async Task RunButtonCommand(TCommandsType commands, string command)
+        public async Task RunCommand(TCommandsType commands, string command)
         {
             // ожидаем ли мы сейчас такую команду
             if (!commands.KeyboardData.ContainsKey(command))
@@ -109,16 +120,17 @@ namespace TelegramBotLib
             var method = CommandsMethodsList[t].Single(d => d.Name == data.method);
 
             // о да именно то ради чего все это и было написано, дергаем метод команды
-            await (Task)method.Invoke(commands, new object[] { data.param });
+            await (Task) method.Invoke(commands, new object[] {data.param});
         }
 
 
         public void StartReceiving()
         {
-            _bot.StartReceiving(new[] { UpdateType.Message, UpdateType.CallbackQuery });
+            _bot.StartReceiving(new[] {UpdateType.Message, UpdateType.CallbackQuery});
             _bot.OnMessage += Bot_OnMessage;
             _bot.OnCallbackQuery += Bot_OnCallbackQuery;
         }
+
         public void StopReceiving()
         {
             _bot.StopReceiving();
@@ -130,18 +142,19 @@ namespace TelegramBotLib
         {
             if (e.CallbackQuery.Message.Chat.Type != ChatType.Private) return;
 
-            var user = GetUser(e.CallbackQuery.From);
+            var user = GetCommands(e.CallbackQuery.Message.Chat);
 
-            await RunButtonCommand(user, e.CallbackQuery.Data);
+            await RunCommand(user, e.CallbackQuery.Data);
         }
 
         private async void Bot_OnMessage(object sender, Telegram.Bot.Args.MessageEventArgs e)
-        {             if (e.Message.Type != MessageType.Text) return;
+        {
+            if (e.Message.Type != MessageType.Text) return;
             if (e.Message.Chat.Type != ChatType.Private) return;
 
-            var user = GetUser(e.Message.From);
+            var user = GetCommands(e.Message.Chat);
 
-            await RunButtonCommand(user, e.Message.Text);
+            await RunCommand(user, e.Message.Text);
         }
     }
 }
