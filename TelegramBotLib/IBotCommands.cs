@@ -48,39 +48,40 @@ namespace TelegramBotLib
         }
 
         private InlineKeyboardMarkup CreateInlineKeyboardMarkup(
-            IEnumerable<IEnumerable<(string text, string data)>> keyboard)
+            IEnumerable<IEnumerable<(string text, string method, string param)>> keyboard)
         {
             if (keyboard == null) return null;
 
             KeyboardData = new Dictionary<string, (string method, string param)>();
 
-            // ReSharper disable once PossibleMultipleEnumeration
             return new InlineKeyboardMarkup(keyboard.Select(line =>
                 line.Select(button =>
                 {
-                    KeyboardData.Add(GenerateHash(button.text + button.data), button);
-                    return InlineKeyboardButton.WithCallbackData(button.text, button.data);
+                    var (text, method, parameter) = button;
+                    var hash = GenerateHash(text + method + parameter);
+                    KeyboardData.Add(hash, (method, parameter));
+                    return InlineKeyboardButton.WithCallbackData(text, hash);
                 })));
         }
 
         private ReplyKeyboardMarkup CreateReplyKeyboardMarkup(
-            IEnumerable<IEnumerable<(string text, string data)>> keyboard)
+            IEnumerable<IEnumerable<(string text, string method, string param)>> keyboard)
         {
             if (keyboard == null) return null;
 
             KeyboardData = new Dictionary<string, (string method, string param)>();
 
-            // ReSharper disable once PossibleMultipleEnumeration
             return new ReplyKeyboardMarkup(keyboard.Select(line =>
                 line.Select(button =>
                 {
-                    KeyboardData.Add(GenerateHash(button.text + button.data), button);
-                    return new KeyboardButton(button.text);
+                    var (text, method, parameter) = button;
+                    KeyboardData.Add(text, (method, parameter));
+                    return new KeyboardButton(text);
                 })));
         }
 
         protected async Task SendMessage(string text,
-            IEnumerable<IEnumerable<(string text, string data)>> keyboard = null, bool inline = true)
+            IEnumerable<IEnumerable<(string text, string method, string param)>> keyboard = null, bool inline = true)
         {
             await OnSendMessage.Invoke(this, text,
                 inline ? CreateInlineKeyboardMarkup(keyboard) : (IReplyMarkup) CreateReplyKeyboardMarkup(keyboard));

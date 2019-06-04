@@ -5,7 +5,12 @@ namespace Example
 {
     public class Commands : TelegramBotLib.BotCommands
     {
-        public Commands(User chat) : base(chat)
+        private string[] data = new string[]
+        {
+            ""
+        };
+
+        public Commands(Chat chat) : base(chat)
         {
         }
 
@@ -13,8 +18,11 @@ namespace Example
         {
             await SendMessage("123",
                 new[] {
-                    new[]{ ("123","123")}
+                    new[]{ ("123",nameof())}
                 });
         }
+
+        public 
+
     }
 }
