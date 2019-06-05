@@ -18,7 +18,7 @@ namespace TelegramBotLib
             Chat = chat;
         }
 
-        public Dictionary<string, (string method, string param)> KeyboardData;
+        public Dictionary<string, (string method, string param)> KeyboardData = new Dictionary<string, (string method, string param)>();
 
         // ReSharper disable once UnusedMember.Global
         public virtual Task Start()
@@ -26,9 +26,10 @@ namespace TelegramBotLib
             return null;
         }
 
-        public virtual void OnUnknownCommand(string command)
+        public virtual Task OnUnknownCommand(string command)
         {
             Console.WriteLine($"UnknownCommand: {command}");
+            return Task.CompletedTask;
         }
 
         private static string GenerateHash(string input)
@@ -48,7 +49,7 @@ namespace TelegramBotLib
         }
 
         private InlineKeyboardMarkup CreateInlineKeyboardMarkup(
-            IEnumerable<IEnumerable<(string text, string method, string param)>> keyboard)
+            IEnumerable<IEnumerable<ButtonClass>> keyboard)
         {
             if (keyboard == null) return null;
 
@@ -57,15 +58,14 @@ namespace TelegramBotLib
             return new InlineKeyboardMarkup(keyboard.Select(line =>
                 line.Select(button =>
                 {
-                    var (text, method, parameter) = button;
-                    var hash = GenerateHash(text + method + parameter);
-                    KeyboardData.Add(hash, (method, parameter));
-                    return InlineKeyboardButton.WithCallbackData(text, hash);
+                    var hash = GenerateHash(button.Text + button.Method + button.Param);
+                    KeyboardData.Add(hash, (button.Method, button.Param));
+                    return InlineKeyboardButton.WithCallbackData(button.Text, hash);
                 })));
         }
 
         private ReplyKeyboardMarkup CreateReplyKeyboardMarkup(
-            IEnumerable<IEnumerable<(string text, string method, string param)>> keyboard)
+            IEnumerable<IEnumerable<ButtonClass>> keyboard)
         {
             if (keyboard == null) return null;
 
@@ -74,14 +74,13 @@ namespace TelegramBotLib
             return new ReplyKeyboardMarkup(keyboard.Select(line =>
                 line.Select(button =>
                 {
-                    var (text, method, parameter) = button;
-                    KeyboardData.Add(text, (method, parameter));
-                    return new KeyboardButton(text);
+                    KeyboardData.Add(button.Text, (button.Method, button.Param));
+                    return new KeyboardButton(button.Text);
                 })));
         }
 
         protected async Task SendMessage(string text,
-            IEnumerable<IEnumerable<(string text, string method, string param)>> keyboard = null, bool inline = true)
+            IEnumerable<IEnumerable<ButtonClass>> keyboard = null, bool inline = true)
         {
             await OnSendMessage.Invoke(this, text,
                 inline ? CreateInlineKeyboardMarkup(keyboard) : (IReplyMarkup) CreateReplyKeyboardMarkup(keyboard));

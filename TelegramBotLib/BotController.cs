@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net;
 using System.Reflection;
 using System.Threading.Tasks;
+using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 
@@ -25,12 +26,12 @@ namespace TelegramBotLib
 
         public BotController(Config config)
         {
-            if (config.ProxyHost == string.Empty)
+            if (string.IsNullOrEmpty((config.ProxyHost)))
                 _bot = new Telegram.Bot.TelegramBotClient(config.Token);
             else
             {
                 IWebProxy webProxy;
-                if (config.ProxyUserName == string.Empty)
+                if (string.IsNullOrEmpty(config.ProxyUserName))
                     webProxy = new WebProxy()
                     {
                         Address = new Uri(config.ProxyHost)
@@ -49,14 +50,16 @@ namespace TelegramBotLib
 
         private readonly object _getCommandsLocker = new object();
 
-        public TCommandsType GetCommands(Telegram.Bot.Types.Chat chat)
+        public TCommandsType GetCommands(Chat chat)
         {
             lock (_getCommandsLocker)
             {
                 if (UserCommandsTypes.ContainsKey(chat.Id))
                     return UserCommandsTypes[chat.Id];
 
-                var ret = (TCommandsType) Activator.CreateInstance(typeof(TCommandsType), new {chat});
+                var t = typeof(TCommandsType);
+                var constructorInfo = t.GetConstructor(new[] {typeof(Chat)});
+                var ret = (TCommandsType)constructorInfo.Invoke( new object[] {chat});
                 ret.OnSendMessage += Send;
                 UserCommandsTypes.Add(chat.Id, ret);
                 return ret;
@@ -102,7 +105,7 @@ namespace TelegramBotLib
             if (!commands.KeyboardData.ContainsKey(command))
             {
                 // неизвестная команда
-                commands.OnUnknownCommand(command);
+                await commands.OnUnknownCommand(command);
                 return;
             }
 
@@ -123,7 +126,6 @@ namespace TelegramBotLib
             await (Task) method.Invoke(commands, new object[] {data.param});
         }
 
-
         public void StartReceiving()
         {
             _bot.StartReceiving(new[] {UpdateType.Message, UpdateType.CallbackQuery});
@@ -140,8 +142,6 @@ namespace TelegramBotLib
 
         private async void Bot_OnCallbackQuery(object sender, Telegram.Bot.Args.CallbackQueryEventArgs e)
         {
-            if (e.CallbackQuery.Message.Chat.Type != ChatType.Private) return;
-
             var user = GetCommands(e.CallbackQuery.Message.Chat);
 
             await RunCommand(user, e.CallbackQuery.Data);
@@ -150,7 +150,6 @@ namespace TelegramBotLib
         private async void Bot_OnMessage(object sender, Telegram.Bot.Args.MessageEventArgs e)
         {
             if (e.Message.Type != MessageType.Text) return;
-            if (e.Message.Chat.Type != ChatType.Private) return;
 
             var user = GetCommands(e.Message.Chat);
 
