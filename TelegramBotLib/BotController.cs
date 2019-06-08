@@ -10,19 +10,19 @@ using Telegram.Bot.Types.ReplyMarkups;
 
 namespace TelegramBotLib
 {
-    public class BotController<TCommandsType> where TCommandsType : BotCommands
+    public class BotController
     {
         private readonly Telegram.Bot.TelegramBotClient _bot;
 
         /// <summary>
         /// Список "юзеров"
         /// </summary>
-        protected Dictionary<long, TCommandsType> UserCommands = new Dictionary<long, TCommandsType>();
+        protected Dictionary<long, BotCommands> UserCommands = new Dictionary<long, BotCommands>();
 
         /// <summary>
         /// Список команд в классе с командами (для економии времени на сканировании класса через рефлексию каждый раз)
         /// </summary>
-        protected Dictionary<Type, MethodInfo[]> CommandsMethodsList = new Dictionary<Type, MethodInfo[]>();
+        protected Dictionary<long, MethodInfo[]> CommandsMethodsList = new Dictionary<long, MethodInfo[]>();
 
         public BotController(Config config)
         {
@@ -48,21 +48,24 @@ namespace TelegramBotLib
             }
         }
 
+        public delegate (BotCommands, MethodInfo[]) NewUserDelegate(Chat chat, User user);
+
+        public event NewUserDelegate OnNewUser = (chat, user) => (null, null);
+
         private readonly object _getCommandsLocker = new object();
 
-        public TCommandsType GetCommands(Chat chat)
+        public BotCommands GetCommands(Chat chat, User user)
         {
             lock (_getCommandsLocker)
             {
                 if (UserCommands.ContainsKey(chat.Id))
                     return UserCommands[chat.Id];
 
-                var t = typeof(TCommandsType);
-                var constructorInfo = t.GetConstructor(new[] {typeof(Chat)});
-                var ret = (TCommandsType)constructorInfo.Invoke( new object[] {chat});
-                ret.OnSendMessage += Send;
-                UserCommands.Add(chat.Id, ret);
-                return ret;
+                var data = OnNewUser(chat, user);
+                CommandsMethodsList.Add(chat.Id, data.Item2);
+                data.Item1.OnSendMessage += Send;
+                UserCommands.Add(chat.Id, data.Item1);
+                return data.Item1;
             }
         }
 
@@ -71,25 +74,8 @@ namespace TelegramBotLib
             await _bot.SendTextMessageAsync(commands.Chat.Id, text, replyMarkup: keyboard);
         }
 
-        private readonly object _getMethodsLocker = new object();
-
-        private void CheckLoadedMethods(Type t)
-        {
-            lock (_getMethodsLocker)
-                if (!CommandsMethodsList.ContainsKey(t))
-                {
-                    // выбираем только "подходящие" методы
-                    var m = t.GetMethods()
-                        .Where(d => d.ReturnType == typeof(Task) && CheckParams(d.GetParameters()))
-                        .ToArray();
-
-                    // сохраняем чтобы в будущем не делать лишних телодвижений
-                    CommandsMethodsList.Add(t, m);
-                }
-        }
-
         // ReSharper disable once SuggestBaseTypeForParameter
-        private static bool CheckParams(ParameterInfo[] param)
+        public static bool CheckParams(ParameterInfo[] param)
         {
             // параметров нету? збс
             if (param.Length == 0) return true;
@@ -99,7 +85,7 @@ namespace TelegramBotLib
             return false;
         }
 
-        public async Task RunCommand(TCommandsType commands, string command)
+        public async Task RunCommand(BotCommands commands, string command)
         {
             // ожидаем ли мы сейчас такую команду
             if (!commands.KeyboardData.ContainsKey(command))
@@ -112,15 +98,9 @@ namespace TelegramBotLib
             // загружаем данные про вызываемый метод и передаваемый параметр
             var data = commands.KeyboardData[command];
 
-            // тип класса с командами
-            Type t = commands.GetType();
-
-            // проверяем загрузили ли мы список методов с этого типа данных
-            CheckLoadedMethods(t);
-
             // ищем именно тот метод который нас интересует
             // ReSharper disable once InconsistentlySynchronizedField
-            var method = CommandsMethodsList[t].Single(d => d.Name == data.method);
+            var method = CommandsMethodsList[commands.Chat.Id].Single(d => d.Name == data.method);
 
             // о да именно то ради чего все это и было написано, дергаем метод команды
             await (Task) method.Invoke(commands, new object[] {data.param});
@@ -142,7 +122,7 @@ namespace TelegramBotLib
 
         private async void Bot_OnCallbackQuery(object sender, Telegram.Bot.Args.CallbackQueryEventArgs e)
         {
-            var user = GetCommands(e.CallbackQuery.Message.Chat);
+            var user = GetCommands(e.CallbackQuery.Message.Chat, e.CallbackQuery.From);
 
             await RunCommand(user, e.CallbackQuery.Data);
         }
@@ -151,7 +131,7 @@ namespace TelegramBotLib
         {
             if (e.Message.Type != MessageType.Text) return;
 
-            var user = GetCommands(e.Message.Chat);
+            var user = GetCommands(e.Message.Chat, e.Message.From);
 
             await RunCommand(user, e.Message.Text);
         }
