@@ -15,9 +15,9 @@ namespace TelegramBotLib
         private readonly Telegram.Bot.TelegramBotClient _bot;
 
         /// <summary>
-        /// Список "типов" классов с командами
+        /// Список "юзеров"
         /// </summary>
-        protected Dictionary<long, TCommandsType> UserCommandsTypes = new Dictionary<long, TCommandsType>();
+        protected Dictionary<long, TCommandsType> UserCommands = new Dictionary<long, TCommandsType>();
 
         /// <summary>
         /// Список команд в классе с командами (для економии времени на сканировании класса через рефлексию каждый раз)
@@ -54,14 +54,14 @@ namespace TelegramBotLib
         {
             lock (_getCommandsLocker)
             {
-                if (UserCommandsTypes.ContainsKey(chat.Id))
-                    return UserCommandsTypes[chat.Id];
+                if (UserCommands.ContainsKey(chat.Id))
+                    return UserCommands[chat.Id];
 
                 var t = typeof(TCommandsType);
                 var constructorInfo = t.GetConstructor(new[] {typeof(Chat)});
                 var ret = (TCommandsType)constructorInfo.Invoke( new object[] {chat});
                 ret.OnSendMessage += Send;
-                UserCommandsTypes.Add(chat.Id, ret);
+                UserCommands.Add(chat.Id, ret);
                 return ret;
             }
         }
