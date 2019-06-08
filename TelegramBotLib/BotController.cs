@@ -133,7 +133,11 @@ namespace TelegramBotLib
 
             var user = GetCommands(e.Message.Chat, e.Message.From);
 
-            await RunCommand(user, e.Message.Text);
+            var command = e.Message.Chat.Type == ChatType.Private
+                ? e.Message.Text
+                : e.Message.Text.Substring(0, e.Message.Text.IndexOf('@'));
+
+            await RunCommand(user, command);
         }
     }
 }
