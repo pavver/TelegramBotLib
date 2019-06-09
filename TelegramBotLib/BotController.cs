@@ -74,6 +74,18 @@ namespace TelegramBotLib
             await _bot.SendTextMessageAsync(commands.Chat.Id, text, replyMarkup: keyboard);
         }
 
+        private User _me;
+
+        public User Me
+        {
+            get
+            {
+                if (_me == null)
+                    _me = _bot.GetMeAsync().Result;
+                return _me;
+            }
+        }
+
         // ReSharper disable once SuggestBaseTypeForParameter
         public static bool CheckParams(ParameterInfo[] param)
         {
@@ -131,11 +143,18 @@ namespace TelegramBotLib
         {
             if (e.Message.Type != MessageType.Text) return;
 
-            var user = GetCommands(e.Message.Chat, e.Message.From);
+            string command;
+            if (e.Message.Chat.Type == ChatType.Private)
+                command = e.Message.Text;
+            else
+            {
+                var myName = $"@{Me.Username}";
+                if (!e.Message.Text.EndsWith(myName))
+                    return;
+                command = e.Message.Text.Replace(myName, "");
+            }
 
-            var command = e.Message.Chat.Type == ChatType.Private
-                ? e.Message.Text
-                : e.Message.Text.Substring(0, e.Message.Text.IndexOf('@'));
+            var user = GetCommands(e.Message.Chat, e.Message.From);
 
             await RunCommand(user, command);
         }
