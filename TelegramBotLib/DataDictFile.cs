@@ -7,19 +7,27 @@ namespace TelegramBotLib
 {
     public class DataDictFile : DataDict
     {
-        public DataDictFile(string path) : base(File.ReadAllLines(path)
-            .Select(ParseLine)
-            .Where(dataLine => dataLine != null)
-            .ToDictionary(dataLine => dataLine.Value.key, dataLine => dataLine.Value.value))
+        public DataDictFile(string path) : base(LoadData(path))
         {
             _path = path;
+        }
+
+        private static Dictionary<string, string> LoadData(string path)
+        {
+            if (File.Exists(path))
+                return File.ReadAllLines(path)
+                    .Select(ParseLine)
+                    .Where(dataLine => dataLine != null)
+                    .ToDictionary(dataLine => dataLine.Value.key, dataLine => dataLine.Value.value);
+
+            return new Dictionary<string, string> { { "LastMsgId", "0" } };
+
         }
 
         private readonly string _path;
 
         private static (string key, string value)? ParseLine(string text)
         {
-            if (text[0] == '#') return null;
             int i = text.IndexOf('|');
             if (i == -1) return null;
             return new ValueTuple<string, string>()
@@ -31,7 +39,11 @@ namespace TelegramBotLib
 
         public override void Add(string key, string value)
         {
-            Data.Add(key, value);
+            if (Data.ContainsKey(key))
+                Data[key] = value;
+            else
+                Data.Add(key, value);
+
             SaveDataToFile();
         }
 

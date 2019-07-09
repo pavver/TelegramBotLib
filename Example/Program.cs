@@ -14,7 +14,7 @@ namespace Example
             // Инициализируем телеграм бота
             _bot = new BotController(new Config()
             {
-                Token = "825252605:AAHsSexEPBEQUQUMFzWGeX_fDITUM9wOrkk"
+                Token = "825252605:AAHsSexEPBEQUQUMFzWGeX_fDITUM9wOrkk",
             });
 
             _bot.OnNewUser += Bot_OnNewUser;
@@ -32,6 +32,7 @@ namespace Example
         private static (BotCommands, System.Reflection.MethodInfo[]) Bot_OnNewUser(Telegram.Bot.Types.Chat chat, Telegram.Bot.Types.User user)
         {
             Commands c = new Commands(chat);
+
             System.Reflection.MethodInfo[] m = c.GetType().GetMethods()
                 .Where(d => d.ReturnType == typeof(Task) && BotController.CheckParams(d.GetParameters()))
                 .ToArray();

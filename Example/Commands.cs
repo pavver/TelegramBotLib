@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 using Telegram.Bot.Types;
 using System.Linq;
@@ -25,8 +27,15 @@ namespace Example
             "Vauxhall", "Volkswagen", "Volvo"
         };
 
-        public Commands(Chat chat) : base(chat)
+        public Commands(Chat chat) : base(chat, GetDataFile(chat.Id))
         {
+        }
+
+        private static DataDictFile GetDataFile(long chatId)
+        {
+            var dir = Path.Combine(Environment.CurrentDirectory, "Data");
+            if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+            return new DataDictFile(Path.Combine(dir, chatId.ToString()));
         }
 
         public override async Task OnUnknownCommand(string command)

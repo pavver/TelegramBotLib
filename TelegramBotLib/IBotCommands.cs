@@ -13,9 +13,12 @@ namespace TelegramBotLib
 
         public readonly Telegram.Bot.Types.Chat Chat;
 
-        public BotCommands(Telegram.Bot.Types.Chat chat)
+        public readonly DataDict Data;
+
+        public BotCommands(Telegram.Bot.Types.Chat chat, DataDict data)
         {
             Chat = chat;
+            Data = data;
         }
 
         public Dictionary<string, (string method, string param)> KeyboardData = new Dictionary<string, (string method, string param)>();

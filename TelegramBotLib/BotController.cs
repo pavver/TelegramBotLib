@@ -103,8 +103,7 @@ namespace TelegramBotLib
             if (!commands.KeyboardData.ContainsKey(command))
             {
                 // неизвестная команда
-                await commands.OnUnknownCommand(command);
-                return;
+                throw new InvalidOperationException();
             }
 
             // загружаем данные про вызываемый метод и передаваемый параметр
@@ -136,7 +135,23 @@ namespace TelegramBotLib
         {
             var user = GetCommands(e.CallbackQuery.Message.Chat, e.CallbackQuery.From);
 
-            await RunCommand(user, e.CallbackQuery.Data);
+            try
+            {
+                await RunCommand(user, e.CallbackQuery.Data);
+            }
+            catch (InvalidOperationException)
+            {
+                try
+                {
+                    await _bot.EditMessageTextAsync(e.CallbackQuery.Message.Chat.Id,
+                        e.CallbackQuery.Message.MessageId,
+                        e.CallbackQuery.Message.Text);
+                }
+                catch (Exception)
+                {
+                    // ignored
+                }
+            }
         }
 
         private async void Bot_OnMessage(object sender, Telegram.Bot.Args.MessageEventArgs e)
@@ -156,7 +171,14 @@ namespace TelegramBotLib
 
             var user = GetCommands(e.Message.Chat, e.Message.From);
 
-            await RunCommand(user, command);
+            try
+            {
+                await RunCommand(user, command);
+            }
+            catch (InvalidOperationException)
+            {
+                await user.OnUnknownCommand(command);
+            }
         }
     }
 }
